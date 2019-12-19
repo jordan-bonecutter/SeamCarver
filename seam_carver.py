@@ -200,7 +200,7 @@ def main(argv) -> int:
     print('Usage: ' + argv[0] + ' <input_image> <output_image> <ratio>')
     return 1
 
-  pic = cv.imread('dog.jpg')
+  pic = cv.imread(argv[1])
 
   if pic is None:
     print('File ' + argv[1] + ' couldn\'t be found')
