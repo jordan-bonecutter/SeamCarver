@@ -40,12 +40,12 @@ def _optimal_seam3(left, middle, right, energy):
     return (middle + energy, 0)
 
 
-def _find_optimal_seam(energy, direction='vertical'):
+def _find_optimal_seam(energy, shape, direction='vertical'):
   """use a dynamic programming approach to find the seam.
   energy: np.array(h, w)
   direction: 'vertical' or 'horizontal'
   return: seam: list of integers corresponding to indeces to be removed"""
-  h, w = energy.shape
+  h, w = tuple(shape)
   memo = np.zeros((h, w, 2))
 
   # this approach to seam carving utilizes dp as mentioned
@@ -108,7 +108,7 @@ def _find_optimal_seam(energy, direction='vertical'):
         memo[y, x] = _optimal_seam3(memo[y-1, x-1,0], memo[y, x-1,0], memo[y+1, x-1,0], energy[y, x])
       memo[h-1, x] = _optimal_seaml(memo[h-2, x-1,0], memo[h-1, x-1,0], energy[h-1, x])
 
-    # same as in vartical mode, work back up
+    # same as in vertical mode, work back up
     # from the bottom of the memoized array
     ret = []
     min_index = 0
@@ -138,49 +138,34 @@ def _find_optimal_seam(energy, direction='vertical'):
   return ret
 
 
-def _carve_seam(image, seam, direction='vertical'):
+def _carve_seam(image, shape, seam, direction='vertical'):
   """given an image and the seam as a list of integer
   indeces, carve the seam out and return the resultant
   image""" 
-  shape  = image.shape
-  nshape = list(shape)
   if direction == 'vertical':
     # if we are trimming vertically (a column) then the
     # output image will have one fewer column
-    nshape[1] -= 1
-    nshape = tuple(nshape)
-    ret = np.zeros(nshape, image.dtype)
+    shape[1] -= 1
     
     # now we copy and skip the column on the seam
     for y in range(shape[0]):
-      x = 0
-      for _x in range(shape[1]):
-        if _x == seam[y]:
-          continue
-        ret[y, x] = image[y, _x]
-        x += 1
+      for x in range(seam[y], shape[1]):
+        image[y, x] = image[y, x+1]
 
   # same deal here, except rows instead of columns
   else:
-    nshape[0] -= 1
-    nshape = tuple(nshape)
-    ret = np.zeros(nshape, image.dtype)
+    shape[0] -= 1
     
     for x in range(shape[1]):
-      y = 0
-      for _y in range(shape[0]):
-        if _y == seam[x]:
-          continue
-        ret[y, x] = image[_y, x]
-        y += 1
-
-  return ret
+      for y in range(seam[x], shape[0]):
+        image[y, x] = image[y+1, x]
 
 
 def seam_carver(image, aspect_ratio):
   """given an image and the desired aspect ratio, use 
   seam carving to retarget the image to fit the desired
-  ratio"""
+  ratio.
+  strategy = carve or add"""
   global _ksize
   image   = image.copy()
   h, w, c = image.shape
@@ -203,23 +188,31 @@ def seam_carver(image, aspect_ratio):
   if old_aspect_ratio < aspect_ratio:
     # let's find the number of rows to remove
     remove = int(h - w/aspect_ratio)
+    ishape = [h, w, c]
+    eshape = [h, w]
 
     # now we can iterate over the number of seams to remove
     for _ in range(remove):
-      seam  = _find_optimal_seam(sgm,   direction='horizontal')
-      image = _carve_seam(image, seam, direction='horizontal')
-      sgm   = _carve_seam(sgm,   seam, direction='horizontal')
+      seam = _find_optimal_seam(sgm, eshape, direction='horizontal')
+      _carve_seam(image, ishape, seam, direction='horizontal')
+      _carve_seam(sgm,   eshape, seam, direction='horizontal')
+
+    image = image[:h-remove, :]
     
   # if the aspect ratio decreased, then we should
   # remove vertical seams from the image
   elif old_aspect_ratio > aspect_ratio:
     remove = int(w - aspect_ratio*h)
+    ishape = [h, w, c]
+    eshape = [h, w]
 
     # now we can iterate over the number of seams to remove
     for _ in range(remove):
-      seam  = _find_optimal_seam(sgm,   direction='vertical')
-      image = _carve_seam(image, seam, direction='vertical')
-      sgm   = _carve_seam(sgm,   seam, direction='vertical')
+      seam = _find_optimal_seam(sgm, eshape, direction='vertical')
+      _carve_seam(image, ishape, seam, direction='vertical')
+      _carve_seam(sgm,   eshape, seam, direction='vertical')
+
+    image = image[:, :w-remove]
         
   return image
 
