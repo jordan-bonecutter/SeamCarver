@@ -41,10 +41,30 @@ def _optimal_seam3(left, middle, right, energy):
 
 
 def _find_optimal_seam(energy, direction='vertical'):
-  """use a dynamic programming approach to find the seam"""
+  """use a dynamic programming approach to find the seam.
+  energy: np.array(h, w)
+  direction: 'vertical' or 'horizontal'
+  return: seam: list of integers corresponding to indeces to be removed"""
   h, w = energy.shape
   memo = np.zeros((h, w, 2))
 
+  # this approach to seam carving utilizes dp as mentioned
+  # in the paper. essentially, we want to find the minimum 
+  # cost from the top row to the bottom row. we can treat 
+  # the problem in stages. first, we look at every pixel in
+  # the top row and set it's cost equal to the energy at 
+  # that pixel. next we add on the next row. if we want to 
+  # find the cost of a path for a pixel in the second row,
+  # we can say that it is equal to the minimum of the cost 
+  # of the three adjacent paths above it plus it's own 
+  # energy. in other words: 
+  # memo[y, x] = min(memo[y-1,x-1], memo[y-1,x], memo[y-1,x+1]) + energy[y, x]
+  # and
+  # memo[0, x] = energy[0, x]
+  # so we continue this process all the way down the image.
+  # once we get to the bottom row, we work our way back up.
+  # we also record the steps we take along the way so it's
+  # easier to work back up at the end
   if direction == 'vertical':
     # the first row in the memoize array is the
     # first row of the energy array
@@ -107,6 +127,14 @@ def _find_optimal_seam(energy, direction='vertical'):
   # reverse the array so it's easier to use
   # cause python
   ret.reverse()
+
+  # format of return value: [1, 2, 2, 3, 2, ...] would mean
+  # to remove the pixel in column 1 in the row 0, column 2
+  # in row 1, column 2 in row 2, column 3 in row 3, column
+  # 2 in row 4, ..., column c_i in row h-1 (vertical mode).
+  #
+  # in horizontal mode, it means much the same except flip
+  # the rows and the columns
   return ret
 
 
