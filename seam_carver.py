@@ -12,6 +12,7 @@ _ksize = 3
 
 
 def _optimal_seaml(left, middle, energy):
+  """find the optimal path given two choices (no right)"""
   if left < middle:
     return (left + energy, -1)
   else:
@@ -19,6 +20,7 @@ def _optimal_seaml(left, middle, energy):
 
 
 def _optimal_seamr(middle, right, energy):
+  """find the optimal path given two choices (no left)"""
   if middle < right:
     return (middle + energy, 0)
   else:
@@ -26,6 +28,7 @@ def _optimal_seamr(middle, right, energy):
 
 
 def _optimal_seam3(left, middle, right, energy):
+  """find the optimal path given three choices"""
   if left < middle:
     if left < right:
       return (left + energy, -1)
@@ -39,14 +42,6 @@ def _optimal_seam3(left, middle, right, energy):
 
 def _find_optimal_seam(energy, direction='vertical'):
   """use a dynamic programming approach to find the seam"""
-
-  #energy = np.zeros((5, 6))
-  #energy[0] = 240.18, 225.59, 302.27, 159.43, 181.81, 192.99
-  #energy[1] = 124.18, 237.35, 151.02, 234.09, 107.89, 159.67
-  #energy[2] = 111.10, 138.69, 228.10, 133.07, 211.51, 143.75
-  #energy[3] = 130.67, 153.88, 174.01, 284.01, 194.50, 213.53
-  #energy[4] = 179.82, 175.49,  70.06, 270.80, 201.53, 191.20
-
   h, w = energy.shape
   memo = np.zeros((h, w, 2))
 
@@ -63,6 +58,9 @@ def _find_optimal_seam(energy, direction='vertical'):
         memo[y, x] = _optimal_seam3(memo[y-1, x-1,0], memo[y-1, x,0], memo[y-1, x+1,0], energy[y, x])
       memo[y, w-1] = _optimal_seaml(memo[y-1, w-2,0], memo[y-1, w-1,0], energy[y, w-1])
 
+    # once we have the memoized array, we can 
+    # work backwards from the bottom by finding the
+    # minimum value and retracing our path from there
     ret = []
     min_index = 0
     min_val   = memo[h-1, w-1,0] + 1
@@ -90,6 +88,8 @@ def _find_optimal_seam(energy, direction='vertical'):
         memo[y, x] = _optimal_seam3(memo[y-1, x-1,0], memo[y, x-1,0], memo[y+1, x-1,0], energy[y, x])
       memo[h-1, x] = _optimal_seaml(memo[h-2, x-1,0], memo[h-1, x-1,0], energy[h-1, x])
 
+    # same as in vartical mode, work back up
+    # from the bottom of the memoized array
     ret = []
     min_index = 0
     min_val   = memo[h-1, w-1,0] + 1
@@ -104,18 +104,26 @@ def _find_optimal_seam(energy, direction='vertical'):
       curr += int(memo[curr, w-1-x, 1])
     ret.append(curr)
 
+  # reverse the array so it's easier to use
+  # cause python
   ret.reverse()
   return ret
 
 
-def _remove_seam(image, seam, direction='vertical'):
+def _carve_seam(image, seam, direction='vertical'):
+  """given an image and the seam as a list of integer
+  indeces, carve the seam out and return the resultant
+  image""" 
   shape  = image.shape
   nshape = list(shape)
   if direction == 'vertical':
+    # if we are trimming vertically (a column) then the
+    # output image will have one fewer column
     nshape[1] -= 1
     nshape = tuple(nshape)
     ret = np.zeros(nshape, image.dtype)
     
+    # now we copy and skip the column on the seam
     for y in range(shape[0]):
       x = 0
       for _x in range(shape[1]):
@@ -124,6 +132,7 @@ def _remove_seam(image, seam, direction='vertical'):
         ret[y, x] = image[y, _x]
         x += 1
 
+  # same deal here, except rows instead of columns
   else:
     nshape[0] -= 1
     nshape = tuple(nshape)
@@ -140,7 +149,10 @@ def _remove_seam(image, seam, direction='vertical'):
   return ret
 
 
-def seam_removal(image, aspect_ratio):
+def seam_carver(image, aspect_ratio):
+  """given an image and the desired aspect ratio, use 
+  seam carving to retarget the image to fit the desired
+  ratio"""
   global _ksize
   image   = image.copy()
   h, w, c = image.shape
@@ -169,9 +181,8 @@ def seam_removal(image, aspect_ratio):
     # now we can iterate over the number of seams to remove
     for _ in range(remove):
       seam  = _find_optimal_seam(sgm,   direction='horizontal')
-      image = _remove_seam(image, seam, direction='horizontal')
-      sgm   = _remove_seam(sgm,   seam, direction='horizontal')
-      print((_+1)/(remove))
+      image = _carve_seam(image, seam, direction='horizontal')
+      sgm   = _carve_seam(sgm,   seam, direction='horizontal')
     
   # if the aspect ratio decreased, then we should
   # remove vertical seams from the image
@@ -181,17 +192,26 @@ def seam_removal(image, aspect_ratio):
     # now we can iterate over the number of seams to remove
     for _ in range(remove):
       seam  = _find_optimal_seam(sgm,   direction='vertical')
-      image = _remove_seam(image, seam, direction='vertical')
-      sgm   = _remove_seam(sgm,   seam, direction='vertical')
-      print((_+1)/(remove))
+      image = _carve_seam(image, seam, direction='vertical')
+      sgm   = _carve_seam(sgm,   seam, direction='vertical')
         
   return image
 
-def main() -> int:
+def main(argv) -> int:
+  if len(argv) != 4:
+    print('Usage: ' + argv[0] + ' <input_image> <output_image> <ratio>')
+    return 1
+
   pic = cv.imread('dog.jpg')
-  resize = seam_removal(pic, 1.75)
-  cv.imwrite('dognew.jpg', resize)
+
+  if pic is None:
+    print('File ' + argv[1] + ' couldn\'t be found')
+    return 1
+
+  resize = seam_carver(pic, float(argv[3]))
+  cv.imwrite(argv[2], resize)
   return 0
 
 if __name__ == '__main__':
-  main()
+  import sys
+  main(sys.argv)
