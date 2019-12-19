@@ -161,13 +161,11 @@ def seam_carver(image, aspect_ratio):
   dx  = cv.Sobel(image, cv.CV_64F, 1, 0, ksize=_ksize)
   dy  = cv.Sobel(image, cv.CV_64F, 0, 1, ksize=_ksize)
   sgm = np.zeros((h, w), dtype=np.float64)
-  m   = 0
   for x in range(w):
     for y in range(h):
       for i in range(c):
         sgm[y, x] += (dx[y, x, i]*dx[y, x, i] + dy[y, x, i]*dy[y, x, i])
       sgm[y, x] = sqrt(sgm[y, x])
-      m = max(m, sgm[y, x])
   
   # determine resizing strategy
   old_aspect_ratio = w / h
